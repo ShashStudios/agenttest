@@ -103,7 +103,7 @@ test_helpful_tone:
 
 ```yaml
 # .github/workflows/agenttest.yml
-- run: pip install agenttest-py-py
+- run: pip install agenttest-py
 - run: agenttest run
   env:
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
