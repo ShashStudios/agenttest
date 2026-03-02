@@ -5,7 +5,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/agenttest.svg)](https://pypi.org/project/agenttest/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-<!-- [![CI](https://github.com/YOUR_ORG/agenttest/actions/workflows/agenttest.yml/badge.svg)](https://github.com/YOUR_ORG/agenttest/actions) -->
+[![CI](https://github.com/ShashStudios/agenttest/actions/workflows/agenttest.yml/badge.svg)](https://github.com/ShashStudios/agenttest/actions)
 
 ---
 
