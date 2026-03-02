@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agenttest"
+version = "0.1.0"
+description = "The pytest of AI agents. Eval-driven testing for LLM applications."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+keywords = ["llm", "agents", "testing", "evals", "ai", "pytest", "anthropic"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "anthropic>=0.20.0",
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "toml>=0.10.0",
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+agenttest = "agenttest.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agenttest"]

@@ -1,0 +1,9 @@
+[agenttest]
+model = "claude-3-5-haiku-latest"
+timeout_seconds = 30
+workers = 4
+fail_threshold = 0.8
+cache = true
+
+[agenttest.env]
+ANTHROPIC_API_KEY = "$ANTHROPIC_API_KEY"
