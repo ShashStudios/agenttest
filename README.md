@@ -2,7 +2,7 @@
 
 **The pytest of AI agents.** Catch regressions before they reach prod.
 
-[![PyPI version](https://img.shields.io/pypi/v/agenttest.svg)](https://pypi.org/project/agenttest/)
+[![PyPI version](https://img.shields.io/pypi/v/agenttest-py.svg)](https://pypi.org/project/agenttest-py/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/ShashStudios/agenttest/actions/workflows/agenttest.yml/badge.svg)](https://github.com/ShashStudios/agenttest/actions)
@@ -20,7 +20,7 @@ Every team shipping AI agents hits the same wall: your "eval" is manually pastin
 ## 30-Second Quickstart
 
 ```bash
-pip install agenttest
+pip install agenttest-py
 export ANTHROPIC_API_KEY=your_key
 agenttest init
 agenttest run
@@ -103,7 +103,7 @@ test_helpful_tone:
 
 ```yaml
 # .github/workflows/agenttest.yml
-- run: pip install agenttest
+- run: pip install agenttest-py-py
 - run: agenttest run
   env:
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
