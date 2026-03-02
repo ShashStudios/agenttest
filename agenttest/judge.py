@@ -1,16 +1,14 @@
-"""LLM-as-judge scoring functions using Anthropic API."""
+"""LLM-as-judge scoring functions. Supports Anthropic, OpenAI, Claude CLI, Codex CLI, Ollama."""
 
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
 from typing import Any
 
-from anthropic import Anthropic
-
-from .config import get_api_key, load_config
+from .config import load_config
+from .providers import call_llm, detect_provider
 
 CACHE_DIR = Path(".agenttest_cache")
 
@@ -48,41 +46,33 @@ def _set_cached(cache_key: str, result: Any, config: dict[str, Any]) -> None:
 def _call_judge(
     system_prompt: str,
     user_prompt: str,
-    response_format: str,
     config: dict[str, Any],
     cache_key: str | None = None,
 ) -> str:
-    """Call Anthropic API and return raw response text."""
+    """Call LLM (Anthropic, OpenAI, Claude CLI, Codex CLI, or Ollama) and return raw response."""
     if cache_key:
         hit, cached = _get_cached(cache_key, config)
         if hit:
             return cached
 
+    import os
+    provider = os.environ.get("AGENTTEST_JUDGE") or config.get("judge") or config.get("provider")
     try:
-        client = Anthropic(api_key=get_api_key(config))
-        model = config.get("model", "claude-3-5-haiku-latest")
-
-        msg = client.messages.create(
-            model=model,
-            max_tokens=1024,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-
-        text = msg.content[0].text if msg.content else ""
-
+        text = call_llm(system_prompt, user_prompt, config, provider)
         if cache_key:
             _set_cached(cache_key, text, config)
         return text
+    except ValueError:
+        raise
     except Exception as e:
         err_name = type(e).__name__
         if "Authentication" in err_name or "401" in str(e):
             raise ValueError(
-                "Invalid ANTHROPIC_API_KEY. Check your key at https://console.anthropic.com/"
+                "Invalid API key. Check ANTHROPIC_API_KEY or OPENAI_API_KEY."
             ) from e
         if "Rate" in err_name or "429" in str(e):
             raise ValueError(
-                "Anthropic API rate limit exceeded. Try again later or reduce --workers."
+                "API rate limit exceeded. Try again later or reduce --workers."
             ) from e
         raise
 
@@ -113,7 +103,7 @@ Output ONLY a JSON object with this exact structure:
         if context:
             user += f"Context:\n{context}\n\n"
         user += "Does the response contain hallucinations? Output JSON only."
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         try:
             data = _extract_json(raw)
             return not data.get("hallucination", True)
@@ -130,7 +120,7 @@ Output ONLY a JSON object with this exact structure:
 {"tone": "empathetic"|"professional"|"aggressive"|"neutral"}
 Optionally: {"explanation": "brief reason"} if asked to explain."""
         user = f"Classify the tone of this response:\n\n{response}"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         return str(data.get("tone", "neutral"))
 
@@ -141,7 +131,7 @@ Optionally: {"explanation": "brief reason"} if asked to explain."""
 {"contains": true|false}
 Optional: {"explanation": "..."}"""
         user = f"Response:\n{response}\n\nAction/topic to look for: {action}\n\nDoes it contain or imply this action?"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         return bool(data.get("contains", False))
 
@@ -152,7 +142,7 @@ Optional: {"explanation": "..."}"""
 {"score": 0.0 to 1.0}
 Optional: {"explanation": "..."}"""
         user = f"Query: {query}\n\nResponse: {response}\n\nRelevance score (0.0-1.0)?"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         return float(data.get("score", 0.0))
 
@@ -163,7 +153,7 @@ Optional: {"explanation": "..."}"""
 {"toxic": true|false}
 Optional: {"explanation": "..."}"""
         user = f"Is this response toxic?\n\n{response}"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         return bool(data.get("toxic", False))
 
@@ -174,7 +164,7 @@ Optional: {"explanation": "..."}"""
 {"score": 0.0 to 1.0}
 Optional: {"explanation": "..."}"""
         user = f"Source:\n{source}\n\nResponse:\n{response}\n\nFaithfulness score?"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         return float(data.get("score", 0.0))
 
@@ -185,7 +175,7 @@ Optional: {"explanation": "..."}"""
 {"conciseness": "too_short"|"good"|"too_long"}
 Optional: {"explanation": "..."}"""
         user = f"Classify the length of this response:\n\n{response}"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         return str(data.get("conciseness", "good"))
 
@@ -196,7 +186,7 @@ Optional: {"explanation": "..."}"""
 {"score": 0.0 to 1.0}
 Optional: {"explanation": "..."}"""
         user = f"Criteria: {criteria}\n\nResponse:\n{response}\n\nScore (0.0-1.0)?"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         return float(data.get("score", 0.0))
 
@@ -209,15 +199,17 @@ Optional: {"explanation": "..."}"""
 {"winner": "a"|"b"|"tie"}
 Optional: {"explanation": "..."}"""
         user = f"Criteria: {criteria}\n\nResponse A:\n{response_a}\n\nResponse B:\n{response_b}\n\nWhich is better? a, b, or tie?"
-        raw = _call_judge(sys, user, "json", self._config, cache_key)
+        raw = _call_judge(sys, user, self._config, cache_key)
         data = _extract_json(raw)
         w = str(data.get("winner", "tie")).lower()
         return w if w in ("a", "b", "tie") else "tie"
 
 
 def _extract_json(text: str) -> dict[str, Any]:
-    """Extract JSON object from model output (handle markdown code blocks)."""
-    text = text.strip()
+    """Extract JSON object from model output (handle markdown code blocks, trailing text)."""
+    text = (text or "").strip()
+    if not text:
+        return {}
     if "```" in text:
         start = text.find("```")
         if start >= 0:
@@ -229,8 +221,23 @@ def _extract_json(text: str) -> dict[str, Any]:
             end = rest.find("```")
             if end >= 0:
                 rest = rest[:end]
-            text = rest
-    return json.loads(text)
+            text = rest.strip()
+    # Find {...} in case of leading/trailing non-JSON
+    start = text.find("{")
+    if start >= 0:
+        depth = 0
+        for i, c in enumerate(text[start:], start):
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    text = text[start : i + 1]
+                    break
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {}
 
 
 # Global singleton for convenience

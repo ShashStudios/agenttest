@@ -102,6 +102,10 @@ def load_config(start_dir: Path | str | None = None) -> dict[str, Any]:
             else:
                 config.setdefault("env", {})[key] = val
 
+    # CLI --judge overrides via env (set by run command)
+    if os.environ.get("AGENTTEST_JUDGE"):
+        config["judge"] = os.environ["AGENTTEST_JUDGE"]
+
     return config
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -38,17 +39,31 @@ def app() -> None:
 @click.option("--filter", "-k", "filter_pattern", default=None)
 @click.option("--workers", "-w", default=4, type=int)
 @click.option("--tag", "-t", default=None)
-def run(path: str, filter_pattern: Optional[str], workers: int, tag: Optional[str]) -> None:
+@click.option("--judge", "-j", "judge_provider", default=None, help="Judge: anthropic, openai, claude, codex, ollama. Auto-detect if not set.")
+def run(path: str, filter_pattern: Optional[str], workers: int, tag: Optional[str], judge_provider: Optional[str]) -> None:
     """Discover and run all agent eval tests."""
     from .config import get_api_key
+    from .providers import detect_provider
 
     path_obj = Path(path)
     config = load_config(path_obj)
-    try:
-        get_api_key(config)
-    except ValueError as e:
-        console.print(str(e), style="red")
-        sys.exit(1)
+    if judge_provider:
+        config["judge"] = judge_provider
+        os.environ["AGENTTEST_JUDGE"] = judge_provider
+
+    provider = config.get("judge") or detect_provider(config)
+    if provider == "anthropic":
+        try:
+            get_api_key(config)
+        except ValueError as e:
+            console.print(str(e), style="red")
+            sys.exit(1)
+    elif provider == "openai":
+        env = config.get("env", {})
+        key = env.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if not key:
+            console.print("OPENAI_API_KEY not set. Set it for OpenAI judge.", style="red")
+            sys.exit(1)
 
     timeout = config.get("timeout_seconds", 30)
     fail_threshold = config.get("fail_threshold", 0.8)
@@ -90,8 +105,15 @@ def run(path: str, filter_pattern: Optional[str], workers: int, tag: Optional[st
 @click.option("--path", "-p", default=".", type=click.Path())
 def init(path: str) -> None:
     """Scaffold agent_test_example.py, agenttest.toml, and GitHub Actions workflow."""
+    from .providers import detect_provider
+
     path_obj = Path(path).resolve()
     path_obj.mkdir(parents=True, exist_ok=True)
+
+    try:
+        detected = detect_provider({})
+    except ValueError:
+        detected = "anthropic"  # Default, user will set API key
 
     example_content = '''"""Example agent eval tests. Replace my_agent with your agent."""
 
@@ -147,16 +169,20 @@ def test_custom_score():
     assert score >= 0.5
 '''
 
-    toml_content = '''[agenttest]
-model = "claude-3-5-haiku-latest"
-timeout_seconds = 30
-workers = 4
-fail_threshold = 0.8
-cache = true
-
-[agenttest.env]
-ANTHROPIC_API_KEY = "$ANTHROPIC_API_KEY"
-'''
+    toml_lines = [
+        "[agenttest]",
+        f'judge = "{detected}"',
+        'model = "claude-3-5-haiku-latest"',
+        "timeout_seconds = 30",
+        "workers = 4",
+        "fail_threshold = 0.8",
+        "cache = true",
+        "",
+        "[agenttest.env]",
+        "ANTHROPIC_API_KEY = \"$ANTHROPIC_API_KEY\"",
+        "OPENAI_API_KEY = \"$OPENAI_API_KEY\"",
+    ]
+    toml_content = "\n".join(toml_lines)
 
     workflow_content = '''name: Agent Evals
 on:
@@ -188,8 +214,8 @@ jobs:
     console.print("[green]✓[/green] Created agent_test_example.py")
     console.print("[green]✓[/green] Created agenttest.toml")
     console.print("[green]✓[/green] Created .github/workflows/agenttest.yml")
+    console.print(f"\n[green]✓[/green] Detected judge: [bold]{detected}[/bold] (no API key needed)" if detected in ("claude", "codex", "ollama") else f"\n[dim]Judge: {detected}. Set API key for anthropic/openai.[/dim]")
     console.print("\n[dim]Run: agenttest run[/dim]")
-    console.print("[dim]Set ANTHROPIC_API_KEY in your environment or agenttest.toml[/dim]")
 
 
 @app.command()

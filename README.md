@@ -21,10 +21,37 @@ Every team shipping AI agents hits the same wall: your "eval" is manually pastin
 
 ```bash
 pip install agenttest-py
-export ANTHROPIC_API_KEY=your_key
 agenttest init
 agenttest run
 ```
+
+**No setup. No API key. No account. Zero friction.**
+
+If you have **Claude Code** or **Codex CLI** installed, agenttest uses them automatically. Otherwise it auto-detects Ollama, or uses your API key.
+
+```bash
+# Explicit provider (skip auto-detect)
+agenttest run --judge claude   # Use Claude Code CLI
+agenttest run --judge codex   # Use Codex CLI
+agenttest run --judge ollama  # Use local Ollama
+agenttest run                 # Auto-detect
+```
+
+---
+
+## Judge Providers (5 options)
+
+| Provider | Setup | Command |
+|----------|-------|---------|
+| **claude** | Claude Code CLI installed | `agenttest run --judge claude` |
+| **codex** | Codex CLI installed | `agenttest run --judge codex` |
+| **ollama** | `ollama serve` running | `agenttest run --judge ollama` |
+| **anthropic** | `ANTHROPIC_API_KEY` set | `agenttest run` |
+| **openai** | `OPENAI_API_KEY` set | `agenttest run --judge openai` |
+
+Auto-detection order: anthropic → openai → claude → codex → ollama. First available wins.
+
+---
 
 **Or from scratch:**
 
@@ -134,6 +161,7 @@ Every PR shows whether your agent got better or worse.
 ```toml
 # agenttest.toml
 [agenttest]
+judge = "claude"   # claude | codex | ollama | anthropic | openai
 model = "claude-3-5-haiku-latest"
 timeout_seconds = 30
 workers = 4
@@ -142,6 +170,7 @@ cache = true
 
 [agenttest.env]
 ANTHROPIC_API_KEY = "$ANTHROPIC_API_KEY"
+OPENAI_API_KEY = "$OPENAI_API_KEY"
 ```
 
 ---
